@@ -27,7 +27,11 @@ npm run dev
 
 ## AI 接入
 
-依据 [TypeSafe Quick Start](https://docs.typesafe.ai/introduction/quickstart) 与 [Choice 文档](https://docs.typesafe.ai/primitives/choice)，服务端请求 `POST https://api.typesafe.ai/v1/systemone`，默认模型 `jev-latest`。把棋盘、历史与所有合法落点传入 Choice，读取 `answers.move.choice`。本地只计算规则与即时胜负提示，最终落点由模型选择；失败不会回退成本地 AI。
+依据 [TypeSafe Quick Start](https://docs.typesafe.ai/introduction/quickstart) 与 [Choice 文档](https://docs.typesafe.ai/primitives/choice)，服务端请求 `POST https://api.typesafe.ai/v1/systemone`，默认模型 `jev-latest`。本地先搜索并筛选最多 4 个优质落点，再将棋盘、历史、战术特征和搜索评分交给 Choice，读取 `answers.move.choice`。
+
+本地优先限定立即获胜、必须防守的落点，识别连续与跳空冲四、活三、双重威胁。普通局面从棋子周围两格生成候选，使用迭代加深 Negamax / Alpha-Beta 搜索：常规最多 4 层、3000 节点、约 700 毫秒，根层最多 14 个分支、后续最多 8 个；必胜和必防不受普通分支截断影响。遇到强制防守时最多延伸至 8 层，仍受同一时间与节点预算限制。定期让出事件循环并响应取消，预算耗尽只采用最后完整搜索层的结果；若一层都未完成则使用战术排序。
+
+TypeSafe 只能选择筛选后的候选，不能绕过必胜、必防约束；每个回合仍调用 TypeSafe，包括只有一个候选的情况。失败保留棋局，不以本地落子掩盖接口错误。评分是有限深度的启发式评估，不是胜率；选择性搜索仍可能漏掉更长的战术，不承诺专业棋力。
 
 密钥仅由服务端读取，不返回客户端、不保存到浏览器。AI 上游超时 25 秒，不自动重试；返回非法或已占用落点会报错。服务端重放棋谱验证合法性，并限制同时进行的 AI 请求数为 4。
 

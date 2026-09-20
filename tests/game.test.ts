@@ -61,15 +61,19 @@ test("legal choices include every empty cell without mutating the board", () => 
   assert.deepEqual(board, before);
 });
 test("calls TypeSafe with a constrained choice and validates the response", async () => {
+  let selected = "";
   const fetcher: typeof fetch = async (url, init) => {
     assert.equal(url, "https://api.typesafe.ai/v1/systemone");
     const payload = JSON.parse(String(init?.body));
     assert.equal(payload.model, "jev-latest");
     assert.equal(payload.questions.move.type, "choice");
     assert.equal(payload.questions.move.criteria["7_7"], undefined);
+    const choices = Object.keys(payload.questions.move.criteria);
+    assert.ok(choices.length > 0 && choices.length <= 4);
+    selected = choices[0];
     return Response.json({
       model: "jev-test",
-      answers: { move: { type: "choice", choice: "7_8" } },
+      answers: { move: { type: "choice", choice: selected } },
     });
   };
   const result = await chooseMove([{ row: 7, col: 7 }], "black", {
@@ -77,7 +81,7 @@ test("calls TypeSafe with a constrained choice and validates the response", asyn
     model: "jev-latest",
     fetcher,
   });
-  assert.deepEqual(result.move, { row: 7, col: 8 });
+  assert.equal(`${result.move.row}_${result.move.col}`, selected);
 });
 test("does not substitute a local move on invalid upstream responses", async () => {
   for (const choice of ["7_7", "99_99", "__proto__", null]) {
